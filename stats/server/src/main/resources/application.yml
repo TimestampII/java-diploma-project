@@ -4,6 +4,9 @@ server:
 spring:
   application:
     name: stats-server
+  mvc:
+    format:
+      date-time: "yyyy-MM-dd HH:mm:ss"
   jpa:
     hibernate:
       ddl-auto: update

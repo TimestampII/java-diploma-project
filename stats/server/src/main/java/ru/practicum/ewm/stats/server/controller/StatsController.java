@@ -3,7 +3,6 @@ package ru.practicum.ewm.stats.server.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,12 +18,15 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Формат даты и времени для параметров start/end настроен глобально
+ * через spring.mvc.format.date-time в application.yml, поэтому
+ * @DateTimeFormat на каждом параметре здесь больше не нужен.
+ */
 @Slf4j
 @RestController
 @RequiredArgsConstructor
 public class StatsController {
-
-    private static final String DATE_PATTERN = "yyyy-MM-dd HH:mm:ss";
 
     private final StatsService statsService;
 
@@ -44,8 +46,8 @@ public class StatsController {
      */
     @GetMapping("/stats")
     public List<ViewStatsDto> getStats(
-            @RequestParam @DateTimeFormat(pattern = DATE_PATTERN) LocalDateTime start,
-            @RequestParam @DateTimeFormat(pattern = DATE_PATTERN) LocalDateTime end,
+            @RequestParam LocalDateTime start,
+            @RequestParam LocalDateTime end,
             @RequestParam(required = false) List<String> uris,
             @RequestParam(defaultValue = "false") boolean unique) {
         log.info("Запрос статистики: start={}, end={}, uris={}, unique={}", start, end, uris, unique);

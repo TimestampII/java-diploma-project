@@ -45,8 +45,10 @@ public class EndpointHitDto {
 
     /**
      * Дата и время, когда был совершён запрос к эндпоинту.
+     * Формат задан здесь один раз и одинаково работает и у клиента, и у сервера,
+     * поскольку это аннотация Jackson на самом DTO, а не на Spring-конфигурации.
      */
     @NotNull(message = "Поле 'timestamp' не может быть пустым")
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @JsonFormat(pattern = DateConstants.DATE_PATTERN)
     private LocalDateTime timestamp;
 }

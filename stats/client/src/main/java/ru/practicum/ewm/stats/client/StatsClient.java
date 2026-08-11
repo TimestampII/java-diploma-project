@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
+import ru.practicum.ewm.stats.dto.DateConstants;
 import ru.practicum.ewm.stats.dto.EndpointHitDto;
 import ru.practicum.ewm.stats.dto.ViewStatsDto;
 
@@ -23,13 +24,13 @@ import java.util.List;
 @Component
 public class StatsClient {
 
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern(DateConstants.DATE_PATTERN);
 
     private final RestTemplate restTemplate;
     private final String serverUrl;
 
     public StatsClient(RestTemplateBuilder builder,
-                        @Value("${stats-server.url:http://localhost:9090}") String serverUrl) {
+                       @Value("${stats-server.url:http://localhost:9090}") String serverUrl) {
         this.serverUrl = serverUrl;
         this.restTemplate = builder.rootUri(serverUrl).build();
     }
