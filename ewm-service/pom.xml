@@ -12,4 +12,8 @@
 
     <artifactId>ewm-service</artifactId>
 
+    <build>
+        <finalName>ewm-service</finalName>
+    </build>
+
 </project>
