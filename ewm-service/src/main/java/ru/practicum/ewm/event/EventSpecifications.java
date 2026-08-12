@@ -39,7 +39,7 @@ public class EventSpecifications {
 
     public static Specification<ru.practicum.ewm.event.model.Event> publicSearch(
             String text, List<Long> categories, Boolean paid,
-            LocalDateTime rangeStart, LocalDateTime rangeEnd) {
+            LocalDateTime rangeStart, LocalDateTime rangeEnd, boolean onlyAvailable) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("state"), EventState.PUBLISHED));
@@ -66,6 +66,21 @@ public class EventSpecifications {
             if (rangeEnd != null) {
                 predicates.add(cb.lessThanOrEqualTo(root.get("eventDate"), rangeEnd));
             }
+
+            if (onlyAvailable) {
+                jakarta.persistence.criteria.Subquery<Long> confirmedCountSubquery = query.subquery(Long.class);
+                jakarta.persistence.criteria.Root<ru.practicum.ewm.request.model.Request> requestRoot =
+                        confirmedCountSubquery.from(ru.practicum.ewm.request.model.Request.class);
+                confirmedCountSubquery.select(cb.count(requestRoot))
+                        .where(cb.equal(requestRoot.get("event"), root),
+                                cb.equal(requestRoot.get("status"),
+                                        ru.practicum.ewm.request.model.RequestStatus.CONFIRMED));
+
+                Predicate noLimit = cb.equal(root.get("participantLimit"), 0);
+                Predicate underLimit = cb.lessThan(confirmedCountSubquery, root.get("participantLimit"));
+                predicates.add(cb.or(noLimit, underLimit));
+            }
+
             return cb.and(predicates.toArray(new Predicate[0]));
         };
     }

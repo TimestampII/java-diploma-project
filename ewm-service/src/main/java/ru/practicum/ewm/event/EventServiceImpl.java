@@ -53,10 +53,7 @@ public class EventServiceImpl implements EventService {
     private final UserService userService;
     private final CategoryService categoryService;
     private final StatsClient statsClient;
-
-    // TODO(этап "Requests"): заменить константный confirmedRequests=0 на реальный подсчёт
-    // через RequestRepository.countByEventIdAndStatus(eventId, CONFIRMED), и учитывать его
-    // в фильтре onlyAvailable (participantLimit == 0 || confirmedRequests < participantLimit).
+    private final ru.practicum.ewm.request.RequestRepository requestRepository;
 
     @Override
     @Transactional
@@ -72,6 +69,8 @@ public class EventServiceImpl implements EventService {
         Event saved = repository.save(event);
         log.info("Создано событие id={} инициатором userId={}", saved.getId(), userId);
         return EventMapper.toEventFullDto(saved, 0L, 0L);
+        // confirmedRequests=0 здесь корректно и без запроса к RequestRepository:
+        // у только что созданного события физически не может быть заявок.
     }
 
     @Override
@@ -81,8 +80,10 @@ public class EventServiceImpl implements EventService {
         Pageable pageable = OffsetPageRequest.of(from, size, Sort.by(Sort.Direction.DESC, "eventDate"));
         Page<Event> page = repository.findByInitiatorId(userId, pageable);
         Map<Long, Long> views = getViewsForEvents(page.getContent());
+        Map<Long, Long> confirmed = getConfirmedRequestsForEvents(page.getContent());
         return page.getContent().stream()
-                .map(e -> EventMapper.toEventShortDto(e, 0L, views.getOrDefault(e.getId(), 0L)))
+                .map(e -> EventMapper.toEventShortDto(e, confirmed.getOrDefault(e.getId(), 0L),
+                        views.getOrDefault(e.getId(), 0L)))
                 .collect(Collectors.toList());
     }
 
@@ -91,7 +92,8 @@ public class EventServiceImpl implements EventService {
     public EventFullDto getUserEvent(Long userId, Long eventId) {
         Event event = getOwnedEventOrThrow(userId, eventId);
         long views = getViewsForEvents(List.of(event)).getOrDefault(event.getId(), 0L);
-        return EventMapper.toEventFullDto(event, 0L, views);
+        long confirmed = getConfirmedRequestsForEvents(List.of(event)).getOrDefault(event.getId(), 0L);
+        return EventMapper.toEventFullDto(event, confirmed, views);
     }
 
     @Override
@@ -122,7 +124,8 @@ public class EventServiceImpl implements EventService {
 
         Event saved = repository.save(event);
         long views = getViewsForEvents(List.of(saved)).getOrDefault(saved.getId(), 0L);
-        return EventMapper.toEventFullDto(saved, 0L, views);
+        long confirmed = getConfirmedRequestsForEvents(List.of(saved)).getOrDefault(saved.getId(), 0L);
+        return EventMapper.toEventFullDto(saved, confirmed, views);
     }
 
     @Override
@@ -134,8 +137,10 @@ public class EventServiceImpl implements EventService {
         Pageable pageable = OffsetPageRequest.of(from, size, Sort.by(Sort.Direction.DESC, "eventDate"));
         Page<Event> page = repository.findAll(spec, pageable);
         Map<Long, Long> views = getViewsForEvents(page.getContent());
+        Map<Long, Long> confirmed = getConfirmedRequestsForEvents(page.getContent());
         return page.getContent().stream()
-                .map(e -> EventMapper.toEventFullDto(e, 0L, views.getOrDefault(e.getId(), 0L)))
+                .map(e -> EventMapper.toEventFullDto(e, confirmed.getOrDefault(e.getId(), 0L),
+                        views.getOrDefault(e.getId(), 0L)))
                 .collect(Collectors.toList());
     }
 
@@ -159,7 +164,8 @@ public class EventServiceImpl implements EventService {
 
         Event saved = repository.save(event);
         long views = getViewsForEvents(List.of(saved)).getOrDefault(saved.getId(), 0L);
-        return EventMapper.toEventFullDto(saved, 0L, views);
+        long confirmed = getConfirmedRequestsForEvents(List.of(saved)).getOrDefault(saved.getId(), 0L);
+        return EventMapper.toEventFullDto(saved, confirmed, views);
     }
 
     @Override
@@ -174,17 +180,17 @@ public class EventServiceImpl implements EventService {
 
         recordHit(clientIp, requestUri);
 
-        Specification<Event> spec = EventSpecifications.publicSearch(text, categories, paid, rangeStart, rangeEnd);
+        Specification<Event> spec = EventSpecifications.publicSearch(text, categories, paid, rangeStart, rangeEnd,
+                onlyAvailable);
         Pageable pageable = OffsetPageRequest.of(from, size);
         Page<Event> page = repository.findAll(spec, pageable);
 
         Map<Long, Long> views = getViewsForEvents(page.getContent());
-
-        // onlyAvailable пока не фильтрует по реальным confirmedRequests — см. TODO выше,
-        // ждёт домена Requests. Параметр принимается и не ломает запрос, но эффекта не даёт.
+        Map<Long, Long> confirmed = getConfirmedRequestsForEvents(page.getContent());
 
         List<EventShortDto> result = page.getContent().stream()
-                .map(e -> EventMapper.toEventShortDto(e, 0L, views.getOrDefault(e.getId(), 0L)))
+                .map(e -> EventMapper.toEventShortDto(e, confirmed.getOrDefault(e.getId(), 0L),
+                        views.getOrDefault(e.getId(), 0L)))
                 .collect(Collectors.toList());
 
         if (sort == EventSort.VIEWS) {
@@ -205,7 +211,8 @@ public class EventServiceImpl implements EventService {
         recordHit(clientIp, requestUri);
 
         long views = getViewsForEvents(List.of(event)).getOrDefault(event.getId(), 0L);
-        return EventMapper.toEventFullDto(event, 0L, views);
+        long confirmed = getConfirmedRequestsForEvents(List.of(event)).getOrDefault(event.getId(), 0L);
+        return EventMapper.toEventFullDto(event, confirmed, views);
     }
 
     // ---------------------------------------------------------------------
@@ -313,5 +320,20 @@ public class EventServiceImpl implements EventService {
                         s -> uriToEventId.get(s.getUri()),
                         ViewStatsDto::getHits,
                         Long::sum));
+    }
+
+    /**
+     * Считает подтверждённые заявки для списка событий одним запросом к БД
+     * (group by event_id), а не по одному запросу на событие.
+     */
+    private Map<Long, Long> getConfirmedRequestsForEvents(List<Event> events) {
+        if (events.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> eventIds = events.stream().map(Event::getId).collect(Collectors.toList());
+        return requestRepository.countConfirmedByEventIds(eventIds).stream()
+                .collect(Collectors.toMap(
+                        ru.practicum.ewm.request.EventConfirmedCount::getEventId,
+                        ru.practicum.ewm.request.EventConfirmedCount::getConfirmedCount));
     }
 }

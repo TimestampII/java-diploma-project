@@ -23,6 +23,12 @@ public class ErrorHandler {
         return buildResponse(HttpStatus.NOT_FOUND, "The required object was not found.", e.getMessage());
     }
 
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<ApiError> handleValidationException(ValidationException e) {
+        log.warn("400 (business validation): {}", e.getMessage());
+        return buildResponse(HttpStatus.BAD_REQUEST, "Incorrectly made request.", e.getMessage());
+    }
+
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ApiError> handleConflict(ConflictException e) {
         log.warn("409: {}", e.getMessage());
