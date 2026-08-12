@@ -9,7 +9,6 @@ import ru.practicum.ewm.event.model.Event;
 import ru.practicum.ewm.event.model.EventState;
 import ru.practicum.ewm.exception.ConflictException;
 import ru.practicum.ewm.exception.NotFoundException;
-import ru.practicum.ewm.exception.ValidationException;
 import ru.practicum.ewm.request.dto.EventRequestStatusUpdateRequest;
 import ru.practicum.ewm.request.dto.EventRequestStatusUpdateResult;
 import ru.practicum.ewm.request.dto.ParticipationRequestDto;
@@ -19,6 +18,7 @@ import ru.practicum.ewm.user.User;
 import ru.practicum.ewm.user.UserService;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -64,7 +64,11 @@ public class RequestServiceImpl implements RequestService {
                 .event(event)
                 .requester(requester)
                 .status(status)
-                .created(LocalDateTime.now())
+                // Обрезаем до микросекунд: PostgreSQL хранит timestamp именно с такой точностью,
+                // а LocalDateTime.now() — с наносекундной. Без этого значение created,
+                // возвращённое сразу после save(), не совпадает со значением,
+                // прочитанным позже из БД (при повторном GET).
+                .created(LocalDateTime.now().truncatedTo(ChronoUnit.MICROS))
                 .build();
 
         Request saved = requestRepository.save(request);
@@ -107,7 +111,7 @@ public class RequestServiceImpl implements RequestService {
     @Override
     @Transactional
     public EventRequestStatusUpdateResult updateRequestStatus(Long userId, Long eventId,
-                                                                EventRequestStatusUpdateRequest updateRequest) {
+                                                              EventRequestStatusUpdateRequest updateRequest) {
         Event event = getOwnedEventOrThrow(userId, eventId);
 
         List<Request> requests = requestRepository.findAllByIdInAndEventId(updateRequest.getRequestIds(), eventId);
@@ -117,7 +121,7 @@ public class RequestServiceImpl implements RequestService {
 
         boolean anyNotPending = requests.stream().anyMatch(r -> r.getStatus() != RequestStatus.PENDING);
         if (anyNotPending) {
-            throw new ValidationException("Request must have status PENDING");
+            throw new ConflictException("Request must have status PENDING");
         }
 
         List<Request> confirmed = new ArrayList<>();
@@ -129,6 +133,10 @@ public class RequestServiceImpl implements RequestService {
         } else if (updateRequest.getStatus() == RequestStatus.CONFIRMED) {
             long alreadyConfirmed = requestRepository.countByEventIdAndStatus(eventId, RequestStatus.CONFIRMED);
             int limit = event.getParticipantLimit();
+
+            if (limit != 0 && alreadyConfirmed >= limit) {
+                throw new ConflictException("The participant limit has been reached");
+            }
 
             for (Request r : requests) {
                 if (limit != 0 && alreadyConfirmed >= limit) {

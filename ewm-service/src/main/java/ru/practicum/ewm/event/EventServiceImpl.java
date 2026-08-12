@@ -24,6 +24,7 @@ import ru.practicum.ewm.event.model.Location;
 import ru.practicum.ewm.event.model.UserStateAction;
 import ru.practicum.ewm.exception.ConflictException;
 import ru.practicum.ewm.exception.NotFoundException;
+import ru.practicum.ewm.exception.ValidationException;
 import ru.practicum.ewm.stats.client.StatsClient;
 import ru.practicum.ewm.stats.dto.EndpointHitDto;
 import ru.practicum.ewm.stats.dto.ViewStatsDto;
@@ -151,6 +152,11 @@ public class EventServiceImpl implements EventService {
                 .orElseThrow(() -> new NotFoundException("Event with id=" + eventId + " was not found"));
 
         if (request.getEventDate() != null) {
+            if (request.getEventDate().isBefore(LocalDateTime.now())) {
+                throw new ValidationException(
+                        "Field: eventDate. Error: дата события не может быть в прошлом. Value: "
+                                + request.getEventDate());
+            }
             event.setEventDate(request.getEventDate());
         }
 
@@ -175,7 +181,7 @@ public class EventServiceImpl implements EventService {
                                                    boolean onlyAvailable, EventSort sort, int from, int size,
                                                    String clientIp, String requestUri) {
         if (rangeStart != null && rangeEnd != null && rangeStart.isAfter(rangeEnd)) {
-            throw new ConflictException("Дата начала диапазона не может быть позже даты окончания");
+            throw new ValidationException("Дата начала диапазона не может быть позже даты окончания");
         }
 
         recordHit(clientIp, requestUri);
@@ -245,7 +251,7 @@ public class EventServiceImpl implements EventService {
     private void validateEventDateForCreateOrUpdate(LocalDateTime eventDate) {
         LocalDateTime minAllowed = LocalDateTime.now().plusHours(MIN_HOURS_BEFORE_EVENT);
         if (eventDate.isBefore(minAllowed)) {
-            throw new ConflictException(
+            throw new ValidationException(
                     "Field: eventDate. Error: дата и время события должны быть не ранее чем через "
                             + MIN_HOURS_BEFORE_EVENT + " часа от текущего момента. Value: " + eventDate);
         }

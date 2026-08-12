@@ -80,6 +80,7 @@ public class ErrorHandler {
         return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error.", e.getMessage());
     }
 
+
     private ResponseEntity<ApiError> buildResponse(HttpStatus status, String reason, String message) {
         ApiError body = ApiError.builder()
                 .status(status.name())

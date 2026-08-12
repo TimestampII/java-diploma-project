@@ -10,6 +10,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,7 +21,11 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "compilations")
+@Table(name = "compilations", uniqueConstraints = {
+        // Спецификация подразумевает уникальность названия подборки:
+        // пример 409-ответа на POST /admin/compilations ссылается на constraint uq_compilation_name.
+        @UniqueConstraint(name = "uq_compilation_name", columnNames = "title")
+})
 @Data
 @Builder
 @NoArgsConstructor
