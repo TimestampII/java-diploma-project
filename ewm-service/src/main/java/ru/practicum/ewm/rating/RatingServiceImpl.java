@@ -30,6 +30,8 @@ public class RatingServiceImpl implements RatingService {
     @Override
     @Transactional
     public void rateEvent(Long userId, Long eventId, RatingValue value) {
+        log.info("Голосование userId={}, eventId={}, value={}", userId, eventId, value);
+
         User voter = getUserOrThrow(userId);
         Event event = getEventOrThrow(eventId);
 
@@ -50,12 +52,14 @@ public class RatingServiceImpl implements RatingService {
                         .build());
         rating.setValue(value);
         repository.save(rating);
-        log.info("Голос userId={} за eventId={}: {}", userId, eventId, value);
+        log.info("Голос userId={} за eventId={} сохранён: {}", userId, eventId, value);
     }
 
     @Override
     @Transactional
     public void removeRating(Long userId, Long eventId) {
+        log.info("Отмена голоса userId={}, eventId={}", userId, eventId);
+
         EventRating rating = repository.findByEventIdAndUserId(eventId, userId)
                 .orElseThrow(() -> new NotFoundException(
                         "Rating from userId=" + userId + " for eventId=" + eventId + " was not found"));
@@ -65,6 +69,8 @@ public class RatingServiceImpl implements RatingService {
     @Override
     @Transactional(readOnly = true)
     public UserRatingDto getAuthorRating(Long userId) {
+        log.info("Запрос рейтинга организатора userId={}", userId);
+
         getUserOrThrow(userId);
         Long rating = repository.sumRatingByAuthorId(userId);
         return UserRatingDto.builder()

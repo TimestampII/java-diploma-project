@@ -1,7 +1,6 @@
 package ru.practicum.ewm.rating;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -10,9 +9,9 @@ import ru.practicum.ewm.rating.dto.UserRatingDto;
 
 /**
  * Public: суммарный рейтинг пользователя как организатора событий
- * (сумма лайков минус дизлайков по всем его событиям).
+ * (сумма лайков минус дизлайков по всем его событиям). Логирование —
+ * в сервисе, где происходит бизнес-логика, а не здесь.
  */
-@Slf4j
 @RestController
 @RequestMapping("/users/{userId}/rating")
 @RequiredArgsConstructor
@@ -22,7 +21,6 @@ public class AuthorRatingController {
 
     @GetMapping
     public UserRatingDto getAuthorRating(@PathVariable Long userId) {
-        log.info("Запрос рейтинга организатора userId={}", userId);
         return ratingService.getAuthorRating(userId);
     }
 }
