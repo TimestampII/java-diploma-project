@@ -1,14 +1,78 @@
 services:
+
   stats-server:
+    build:
+      context: .
+      dockerfile: stats/server/Dockerfile
+    image: stats-server
+    container_name: ewm-stats-server
     ports:
       - "9090:9090"
+    depends_on:
+      stats-db:
+        condition: service_healthy
+    environment:
+      - STATS_DB_HOST=stats-db
+      - STATS_DB_PORT=5432
+      - STATS_DB_NAME=ewm-stats
+      - STATS_DB_USER=stats
+      - STATS_DB_PASSWORD=stats
 
   stats-db:
     image: postgres:16.1
+    container_name: ewm-stats-db
+    ports:
+      - "6541:5432"
+    environment:
+      - POSTGRES_DB=ewm-stats
+      - POSTGRES_USER=stats
+      - POSTGRES_PASSWORD=stats
+    volumes:
+      - stats-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U stats -d ewm-stats" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   ewm-service:
+    build:
+      context: .
+      dockerfile: ewm-service/Dockerfile
+    image: ewm-service
+    container_name: ewm-main-service
     ports:
       - "8080:8080"
+    depends_on:
+      ewm-db:
+        condition: service_healthy
+      stats-server:
+        condition: service_started
+    environment:
+      - EWM_DB_HOST=ewm-db
+      - EWM_DB_PORT=5432
+      - EWM_DB_NAME=ewm-main
+      - EWM_DB_USER=ewm
+      - EWM_DB_PASSWORD=ewm
+      - STATS_SERVER_URL=http://stats-server:9090
 
   ewm-db:
     image: postgres:16.1
+    container_name: ewm-main-db
+    ports:
+      - "6542:5432"
+    environment:
+      - POSTGRES_DB=ewm-main
+      - POSTGRES_USER=ewm
+      - POSTGRES_PASSWORD=ewm
+    volumes:
+      - ewm-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ewm -d ewm-main" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  stats-db-data:
+  ewm-db-data:
