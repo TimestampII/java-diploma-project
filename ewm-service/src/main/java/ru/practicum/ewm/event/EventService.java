@@ -38,4 +38,11 @@ public interface EventService {
                                             String clientIp, String requestUri);
 
     EventFullDto getPublishedEvent(Long eventId, String clientIp, String requestUri);
+
+    /**
+     * Конвертирует список событий в EventShortDto с реальными views/confirmedRequests,
+     * посчитанными батч-запросами. Используется доменом Compilations, чтобы не дублировать
+     * эту логику (батч-подсчёт вместо N+1) при отображении событий внутри подборки.
+     */
+    List<EventShortDto> mapToShortDtos(List<ru.practicum.ewm.event.model.Event> events);
 }

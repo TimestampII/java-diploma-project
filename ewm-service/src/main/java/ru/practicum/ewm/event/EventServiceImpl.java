@@ -215,6 +215,20 @@ public class EventServiceImpl implements EventService {
         return EventMapper.toEventFullDto(event, confirmed, views);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<EventShortDto> mapToShortDtos(List<Event> events) {
+        if (events.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Long> views = getViewsForEvents(events);
+        Map<Long, Long> confirmed = getConfirmedRequestsForEvents(events);
+        return events.stream()
+                .map(e -> EventMapper.toEventShortDto(e, confirmed.getOrDefault(e.getId(), 0L),
+                        views.getOrDefault(e.getId(), 0L)))
+                .collect(Collectors.toList());
+    }
+
     // ---------------------------------------------------------------------
     // Вспомогательные методы
     // ---------------------------------------------------------------------
