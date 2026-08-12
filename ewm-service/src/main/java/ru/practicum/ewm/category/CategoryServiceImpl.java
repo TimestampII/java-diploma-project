@@ -18,11 +18,10 @@ import java.util.stream.Collectors;
 public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryRepository repository;
+    private final ru.practicum.ewm.event.EventRepository eventRepository;
 
-    // TODO(этап "Events"): внедрить EventRepository и перед удалением проверять
-    // repository.existsByCategoryId(catId) -> если true, бросать
-    // new ConflictException("The category is not empty") согласно спецификации
-    // (409 на DELETE /admin/categories/{catId}, когда с категорией связаны события).
+    // Проверка "категория не пуста" реализована через EventRepository.existsByCategoryId
+    // (см. deleteCategory ниже) — теперь, когда домен Events существует.
 
     @Override
     @Transactional
@@ -43,6 +42,9 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional
     public void deleteCategory(Long catId) {
         Category category = getCategoryOrThrow(catId);
+        if (eventRepository.existsByCategoryId(catId)) {
+            throw new ru.practicum.ewm.exception.ConflictException("The category is not empty");
+        }
         repository.delete(category);
     }
 

@@ -8,10 +8,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-import ru.practicum.ewm.stats.dto.DateConstants;
 import ru.practicum.ewm.stats.dto.EndpointHitDto;
 import ru.practicum.ewm.stats.dto.ViewStatsDto;
 
+import java.net.URI;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -24,13 +24,13 @@ import java.util.List;
 @Component
 public class StatsClient {
 
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern(DateConstants.DATE_PATTERN);
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final RestTemplate restTemplate;
     private final String serverUrl;
 
     public StatsClient(RestTemplateBuilder builder,
-                       @Value("${stats-server.url:http://localhost:9090}") String serverUrl) {
+                        @Value("${stats-server.url:http://localhost:9090}") String serverUrl) {
         this.serverUrl = serverUrl;
         this.restTemplate = builder.rootUri(serverUrl).build();
     }
@@ -60,7 +60,10 @@ public class StatsClient {
             uriBuilder.queryParam("uris", uris.toArray());
         }
 
-        String uri = uriBuilder.encode().toUriString();
+        // Передаём готовый объект URI, а не String — иначе RestTemplate трактует строку
+        // как шаблон и кодирует её ЕЩЁ РАЗ поверх уже закодированной (двойное кодирование
+        // ломает пробелы/двоеточия в датах: %20 превращается в %2520).
+        URI uri = uriBuilder.encode().build().toUri();
 
         ResponseEntity<ViewStatsDto[]> response = restTemplate.getForEntity(uri, ViewStatsDto[].class);
         if (response.getStatusCode() != HttpStatus.OK || response.getBody() == null) {
