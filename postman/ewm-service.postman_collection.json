@@ -1,0 +1,480 @@
+{
+  "info": {
+    "name": "EWM Main Service",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8080" }
+  ],
+  "item": [
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "POST /admin/users — создать пользователя",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/admin/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Иван Петров\",\"email\":\"ivan.petrov@practicummail.ru\"}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 201', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test('Есть id', () => pm.expect(body.id).to.be.a('number'));",
+              "pm.collectionVariables.set('user_id', body.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /admin/users — дубль email (409)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/admin/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Другое Имя\",\"email\":\"ivan.petrov@practicummail.ru\"}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 409', () => pm.response.to.have.status(409));"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /admin/users — пустое имя (400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/admin/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"\",\"email\":\"someone@practicummail.ru\"}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 400', () => pm.response.to.have.status(400));"
+            ]}
+          }]
+        },
+        {
+          "name": "GET /admin/users",
+          "request": { "method": "GET", "url": "{{base_url}}/admin/users" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));",
+              "pm.test('Тело — массив', () => pm.expect(pm.response.json()).to.be.an('array'));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "POST /admin/categories — создать категорию",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/admin/categories",
+            "body": { "mode": "raw", "raw": "{\"name\":\"Концерты\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 201', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('category_id', body.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /admin/categories — дубль имени (409)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/admin/categories",
+            "body": { "mode": "raw", "raw": "{\"name\":\"Концерты\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 409', () => pm.response.to.have.status(409));"
+            ]}
+          }]
+        },
+        {
+          "name": "GET /categories",
+          "request": { "method": "GET", "url": "{{base_url}}/categories" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        },
+        {
+          "name": "GET /categories/{catId}",
+          "request": { "method": "GET", "url": "{{base_url}}/categories/{{category_id}}" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        },
+        {
+          "name": "GET /categories/999999 — не найдено (404)",
+          "request": { "method": "GET", "url": "{{base_url}}/categories/999999" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 404', () => pm.response.to.have.status(404));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "item": [
+        {
+          "name": "POST /users/{userId}/events — слишком близкая дата (409)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/users/{{user_id}}/events",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"Тест\",\"annotation\":\"Аннотация не короче двадцати символов\",\"description\":\"Описание события не короче двадцати символов\",\"category\":{{category_id}},\"eventDate\":\"2020-01-01 00:00:00\",\"location\":{\"lat\":55.75,\"lon\":37.62}}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 409', () => pm.response.to.have.status(409));"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /users/{userId}/events — создать событие",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/users/{{user_id}}/events",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"Джазовый концерт\",\"annotation\":\"Аннотация не короче двадцати символов\",\"description\":\"Описание события не короче двадцати символов для проверки\",\"category\":{{category_id}},\"eventDate\":\"2027-01-01 12:00:00\",\"location\":{\"lat\":55.75,\"lon\":37.62},\"paid\":true,\"participantLimit\":50}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 201', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test('state=PENDING', () => pm.expect(body.state).to.eql('PENDING'));",
+              "pm.collectionVariables.set('event_id', body.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "GET /events — публичный поиск (событие ещё не опубликовано)",
+          "request": { "method": "GET", "url": "{{base_url}}/events" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        },
+        {
+          "name": "PATCH /admin/events/{eventId} — публикация",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/admin/events/{{event_id}}",
+            "body": { "mode": "raw", "raw": "{\"stateAction\":\"PUBLISH_EVENT\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('state=PUBLISHED', () => pm.expect(body.state).to.eql('PUBLISHED'));"
+            ]}
+          }]
+        },
+        {
+          "name": "PATCH /admin/events/{eventId} — повторная публикация (409)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/admin/events/{{event_id}}",
+            "body": { "mode": "raw", "raw": "{\"stateAction\":\"PUBLISH_EVENT\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 409', () => pm.response.to.have.status(409));"
+            ]}
+          }]
+        },
+        {
+          "name": "GET /events/{id} — после публикации",
+          "request": { "method": "GET", "url": "{{base_url}}/events/{{event_id}}" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('views учтён', () => pm.expect(body.views).to.be.a('number'));"
+            ]}
+          }]
+        },
+        {
+          "name": "GET /users/{userId}/events/{eventId}/чужого пользователя (404)",
+          "request": { "method": "GET", "url": "{{base_url}}/users/999999/events/{{event_id}}" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 404', () => pm.response.to.have.status(404));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Requests",
+      "item": [
+        {
+          "name": "POST /admin/users — второй пользователь (участник)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/admin/users",
+            "body": { "mode": "raw", "raw": "{\"name\":\"Участник\",\"email\":\"participant@practicummail.ru\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 201', () => pm.response.to.have.status(201));",
+              "pm.collectionVariables.set('participant_id', pm.response.json().id);"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /users/{userId}/requests — инициатор на своё событие (409)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/users/{{user_id}}/requests?eventId={{event_id}}"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 409', () => pm.response.to.have.status(409));"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /users/{participantId}/requests — подать заявку",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/users/{{participant_id}}/requests?eventId={{event_id}}"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 201', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test('status=PENDING', () => pm.expect(body.status).to.eql('PENDING'));",
+              "pm.collectionVariables.set('request_id', body.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /users/{participantId}/requests — повторная заявка (409)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/users/{{participant_id}}/requests?eventId={{event_id}}"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 409', () => pm.response.to.have.status(409));"
+            ]}
+          }]
+        },
+        {
+          "name": "GET /users/{userId}/events/{eventId}/requests — заявки на своё событие",
+          "request": { "method": "GET", "url": "{{base_url}}/users/{{user_id}}/events/{{event_id}}/requests" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        },
+        {
+          "name": "PATCH .../requests — подтвердить заявку",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/users/{{user_id}}/events/{{event_id}}/requests",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"requestIds\":[{{request_id}}],\"status\":\"CONFIRMED\"}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('confirmedRequests содержит заявку', () => pm.expect(body.confirmedRequests.length).to.eql(1));"
+            ]}
+          }]
+        },
+        {
+          "name": "PATCH /users/{participantId}/requests/{requestId}/cancel",
+          "request": { "method": "PATCH", "url": "{{base_url}}/users/{{participant_id}}/requests/{{request_id}}/cancel" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('status=CANCELED', () => pm.expect(body.status).to.eql('CANCELED'));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Compilations",
+      "item": [
+        {
+          "name": "POST /admin/compilations — создать подборку",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/admin/compilations",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"Топ недели\",\"pinned\":true,\"events\":[{{event_id}}]}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 201', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test('events содержит 1 элемент', () => pm.expect(body.events.length).to.eql(1));",
+              "pm.collectionVariables.set('compilation_id', body.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /admin/compilations — дубль title (409)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/admin/compilations",
+            "body": { "mode": "raw", "raw": "{\"title\":\"Топ недели\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 409', () => pm.response.to.have.status(409));"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /admin/compilations — несуществующий eventId (404)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/admin/compilations",
+            "body": { "mode": "raw", "raw": "{\"title\":\"Битая подборка\",\"events\":[999999]}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 404', () => pm.response.to.have.status(404));"
+            ]}
+          }]
+        },
+        {
+          "name": "GET /compilations",
+          "request": { "method": "GET", "url": "{{base_url}}/compilations" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        },
+        {
+          "name": "GET /compilations?pinned=true",
+          "request": { "method": "GET", "url": "{{base_url}}/compilations?pinned=true" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('все pinned=true', () => body.forEach(c => pm.expect(c.pinned).to.be.true));"
+            ]}
+          }]
+        },
+        {
+          "name": "PATCH /admin/compilations/{compId}",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/admin/compilations/{{compilation_id}}",
+            "body": { "mode": "raw", "raw": "{\"pinned\":false,\"events\":[]}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('pinned=false', () => pm.expect(body.pinned).to.be.false);",
+              "pm.test('events пуст', () => pm.expect(body.events.length).to.eql(0));"
+            ]}
+          }]
+        },
+        {
+          "name": "DELETE /admin/compilations/{compId}",
+          "request": { "method": "DELETE", "url": "{{base_url}}/admin/compilations/{{compilation_id}}" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 204', () => pm.response.to.have.status(204));"
+            ]}
+          }]
+        },
+        {
+          "name": "GET /compilations/{compId} — удалена (404)",
+          "request": { "method": "GET", "url": "{{base_url}}/compilations/{{compilation_id}}" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 404', () => pm.response.to.have.status(404));"
+            ]}
+          }]
+        }
+      ]
+    }
+  ]
+}
