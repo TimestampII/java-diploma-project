@@ -38,4 +38,10 @@ public class EventShortDto {
     private Long confirmedRequests;
 
     private Long views;
+
+    /**
+     * Чистый рейтинг события (лайки минус дизлайки) — дополнительная
+     * функциональность rating_events.
+     */
+    private Long rating;
 }
