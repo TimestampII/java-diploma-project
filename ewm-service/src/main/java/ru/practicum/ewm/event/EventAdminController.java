@@ -15,16 +15,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ru.practicum.ewm.event.dto.EventFullDto;
 import ru.practicum.ewm.event.dto.UpdateEventAdminRequest;
-import ru.practicum.ewm.event.model.EventState;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Admin: События — поиск по всем событиям без ограничений и модерация
  * (публикация/отклонение), редактирование данных любого события.
+ * Контроллер только принимает и передаёт параметры дальше — разбор enum
+ * и null-safety для списков живут в сервисе, а не здесь.
  */
 @Slf4j
 @RestController
@@ -46,13 +45,7 @@ public class EventAdminController {
             @RequestParam(defaultValue = "10") @Min(1) int size) {
         log.info("Admin: поиск событий users={}, states={}, categories={}, from={}-{}",
                 users, states, categories, rangeStart, rangeEnd);
-        List<EventState> parsedStates = states == null ? Collections.emptyList() : states.stream()
-                .map(EventState::valueOf)
-                .collect(Collectors.toList());
-        List<Long> safeUsers = users == null ? Collections.emptyList() : users;
-        List<Long> safeCategories = categories == null ? Collections.emptyList() : categories;
-        return eventService.searchEventsAdmin(safeUsers, parsedStates, safeCategories, rangeStart, rangeEnd,
-                from, size);
+        return eventService.searchEventsAdmin(users, states, categories, rangeStart, rangeEnd, from, size);
     }
 
     @PatchMapping("/{eventId}")

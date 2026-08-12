@@ -18,8 +18,10 @@ import ru.practicum.ewm.util.OffsetPageRequest;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -60,15 +62,10 @@ public class CompilationServiceImpl implements CompilationService {
     public CompilationDto updateCompilation(Long compId, UpdateCompilationRequest request) {
         Compilation compilation = getCompilationOrThrow(compId);
 
-        if (request.getTitle() != null) {
-            compilation.setTitle(request.getTitle());
-        }
-        if (request.getPinned() != null) {
-            compilation.setPinned(request.getPinned());
-        }
-        if (request.getEvents() != null) {
-            compilation.setEvents(resolveEvents(request.getEvents()));
-        }
+        Optional.ofNullable(request.getTitle()).ifPresent(compilation::setTitle);
+        Optional.ofNullable(request.getPinned()).ifPresent(compilation::setPinned);
+        Optional.ofNullable(request.getEvents())
+                .ifPresent(eventIds -> compilation.setEvents(resolveEvents(eventIds)));
 
         Compilation saved = repository.save(compilation);
         return toDtoWithEvents(saved);
@@ -102,7 +99,7 @@ public class CompilationServiceImpl implements CompilationService {
             return new LinkedHashSet<>();
         }
         List<Event> found = eventRepository.findAllById(eventIds);
-        if (found.size() != new java.util.HashSet<>(eventIds).size()) {
+        if (found.size() != new HashSet<>(eventIds).size()) {
             List<Long> foundIds = found.stream().map(Event::getId).collect(Collectors.toList());
             List<Long> missing = eventIds.stream().filter(id -> !foundIds.contains(id)).collect(Collectors.toList());
             throw new NotFoundException("Events not found: " + missing);

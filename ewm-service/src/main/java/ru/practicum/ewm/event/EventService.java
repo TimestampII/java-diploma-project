@@ -5,8 +5,8 @@ import ru.practicum.ewm.event.dto.EventShortDto;
 import ru.practicum.ewm.event.dto.NewEventDto;
 import ru.practicum.ewm.event.dto.UpdateEventAdminRequest;
 import ru.practicum.ewm.event.dto.UpdateEventUserRequest;
+import ru.practicum.ewm.event.model.Event;
 import ru.practicum.ewm.event.model.EventSort;
-import ru.practicum.ewm.event.model.EventState;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,7 +25,12 @@ public interface EventService {
 
     // ---- Admin ----
 
-    List<EventFullDto> searchEventsAdmin(List<Long> users, List<EventState> states, List<Long> categories,
+    /**
+     * Принимает "сырые" необработанные параметры запроса как есть (в т.ч. null и
+     * текстовые значения states) — разбор enum и null-safety для списков выполняются
+     * внутри сервиса, а не в контроллере, чтобы не размывать слои приложения.
+     */
+    List<EventFullDto> searchEventsAdmin(List<Long> users, List<String> states, List<Long> categories,
                                           LocalDateTime rangeStart, LocalDateTime rangeEnd, int from, int size);
 
     EventFullDto updateEventAdmin(Long eventId, UpdateEventAdminRequest request);
@@ -44,5 +49,5 @@ public interface EventService {
      * посчитанными батч-запросами. Используется доменом Compilations, чтобы не дублировать
      * эту логику (батч-подсчёт вместо N+1) при отображении событий внутри подборки.
      */
-    List<EventShortDto> mapToShortDtos(List<ru.practicum.ewm.event.model.Event> events);
+    List<EventShortDto> mapToShortDtos(List<Event> events);
 }

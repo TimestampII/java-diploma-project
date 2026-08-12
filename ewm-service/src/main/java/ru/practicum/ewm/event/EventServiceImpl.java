@@ -9,7 +9,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.ewm.category.Category;
-import ru.practicum.ewm.category.CategoryService;
+import ru.practicum.ewm.category.CategoryRepository;
 import ru.practicum.ewm.event.dto.EventFullDto;
 import ru.practicum.ewm.event.dto.EventShortDto;
 import ru.practicum.ewm.event.dto.LocationDto;
@@ -25,14 +25,17 @@ import ru.practicum.ewm.event.model.UserStateAction;
 import ru.practicum.ewm.exception.ConflictException;
 import ru.practicum.ewm.exception.NotFoundException;
 import ru.practicum.ewm.exception.ValidationException;
+import ru.practicum.ewm.request.EventConfirmedCount;
+import ru.practicum.ewm.request.RequestRepository;
 import ru.practicum.ewm.stats.client.StatsClient;
 import ru.practicum.ewm.stats.dto.EndpointHitDto;
 import ru.practicum.ewm.stats.dto.ViewStatsDto;
 import ru.practicum.ewm.user.User;
-import ru.practicum.ewm.user.UserService;
+import ru.practicum.ewm.user.UserRepository;
 import ru.practicum.ewm.util.OffsetPageRequest;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -51,16 +54,16 @@ public class EventServiceImpl implements EventService {
     private static final LocalDateTime STATS_EPOCH = LocalDateTime.of(2000, 1, 1, 0, 0);
 
     private final EventRepository repository;
-    private final UserService userService;
-    private final CategoryService categoryService;
+    private final UserRepository userRepository;
+    private final CategoryRepository categoryRepository;
     private final StatsClient statsClient;
-    private final ru.practicum.ewm.request.RequestRepository requestRepository;
+    private final RequestRepository requestRepository;
 
     @Override
     @Transactional
     public EventFullDto createEvent(Long userId, NewEventDto request) {
-        User initiator = userService.getUserOrThrow(userId);
-        Category category = categoryService.getCategoryOrThrow(request.getCategory());
+        User initiator = getUserOrThrow(userId);
+        Category category = getCategoryOrThrow(request.getCategory());
         validateEventDateForCreateOrUpdate(request.getEventDate());
 
         Event event = EventMapper.toEvent(request, category, initiator);
@@ -69,15 +72,15 @@ public class EventServiceImpl implements EventService {
 
         Event saved = repository.save(event);
         log.info("Создано событие id={} инициатором userId={}", saved.getId(), userId);
-        return EventMapper.toEventFullDto(saved, 0L, 0L);
         // confirmedRequests=0 здесь корректно и без запроса к RequestRepository:
         // у только что созданного события физически не может быть заявок.
+        return EventMapper.toEventFullDto(saved, 0L, 0L);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<EventShortDto> getUserEvents(Long userId, int from, int size) {
-        userService.getUserOrThrow(userId);
+        getUserOrThrow(userId);
         Pageable pageable = OffsetPageRequest.of(from, size, Sort.by(Sort.Direction.DESC, "eventDate"));
         Page<Event> page = repository.findByInitiatorId(userId, pageable);
         Map<Long, Long> views = getViewsForEvents(page.getContent());
@@ -131,10 +134,17 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<EventFullDto> searchEventsAdmin(List<Long> users, List<EventState> states, List<Long> categories,
+    public List<EventFullDto> searchEventsAdmin(List<Long> users, List<String> rawStates, List<Long> categories,
                                                  LocalDateTime rangeStart, LocalDateTime rangeEnd,
                                                  int from, int size) {
-        Specification<Event> spec = EventSpecifications.adminSearch(users, states, categories, rangeStart, rangeEnd);
+        List<Long> safeUsers = users == null ? Collections.emptyList() : users;
+        List<Long> safeCategories = categories == null ? Collections.emptyList() : categories;
+        List<EventState> states = (rawStates == null ? Collections.<String>emptyList() : rawStates).stream()
+                .map(EventState::valueOf)
+                .collect(Collectors.toList());
+
+        Specification<Event> spec = EventSpecifications.adminSearch(safeUsers, states, safeCategories,
+                rangeStart, rangeEnd);
         Pageable pageable = OffsetPageRequest.of(from, size, Sort.by(Sort.Direction.DESC, "eventDate"));
         Page<Event> page = repository.findAll(spec, pageable);
         Map<Long, Long> views = getViewsForEvents(page.getContent());
@@ -186,8 +196,9 @@ public class EventServiceImpl implements EventService {
 
         recordHit(clientIp, requestUri);
 
-        Specification<Event> spec = EventSpecifications.publicSearch(text, categories, paid, rangeStart, rangeEnd,
-                onlyAvailable);
+        List<Long> safeCategories = categories == null ? Collections.emptyList() : categories;
+        Specification<Event> spec = EventSpecifications.publicSearch(text, safeCategories, paid, rangeStart,
+                rangeEnd, onlyAvailable);
         Pageable pageable = OffsetPageRequest.of(from, size);
         Page<Event> page = repository.findAll(spec, pageable);
 
@@ -239,13 +250,25 @@ public class EventServiceImpl implements EventService {
     // Вспомогательные методы
     // ---------------------------------------------------------------------
 
+    /**
+     * Проверка владельца события выполняется как условие на уровне БД
+     * (WHERE event_id = ? AND initiator_id = ?) одним запросом, а не отдельным
+     * поиском события с последующей Java-проверкой — ошибка "не найдено"
+     * в обоих случаях одна и та же.
+     */
     private Event getOwnedEventOrThrow(Long userId, Long eventId) {
-        Event event = repository.findById(eventId)
+        return repository.findByIdAndInitiatorId(eventId, userId)
                 .orElseThrow(() -> new NotFoundException("Event with id=" + eventId + " was not found"));
-        if (!event.getInitiator().getId().equals(userId)) {
-            throw new NotFoundException("Event with id=" + eventId + " was not found");
-        }
-        return event;
+    }
+
+    private User getUserOrThrow(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("User with id=" + userId + " was not found"));
+    }
+
+    private Category getCategoryOrThrow(Long catId) {
+        return categoryRepository.findById(catId)
+                .orElseThrow(() -> new NotFoundException("Category with id=" + catId + " was not found"));
     }
 
     private void validateEventDateForCreateOrUpdate(LocalDateTime eventDate) {
@@ -289,7 +312,7 @@ public class EventServiceImpl implements EventService {
             event.setAnnotation(annotation);
         }
         if (categoryId != null) {
-            event.setCategory(categoryService.getCategoryOrThrow(categoryId));
+            event.setCategory(getCategoryOrThrow(categoryId));
         }
         if (description != null) {
             event.setDescription(description);
@@ -352,8 +375,6 @@ public class EventServiceImpl implements EventService {
         }
         List<Long> eventIds = events.stream().map(Event::getId).collect(Collectors.toList());
         return requestRepository.countConfirmedByEventIds(eventIds).stream()
-                .collect(Collectors.toMap(
-                        ru.practicum.ewm.request.EventConfirmedCount::getEventId,
-                        ru.practicum.ewm.request.EventConfirmedCount::getConfirmedCount));
+                .collect(Collectors.toMap(EventConfirmedCount::getEventId, EventConfirmedCount::getConfirmedCount));
     }
 }

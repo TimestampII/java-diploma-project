@@ -15,7 +15,7 @@ import ru.practicum.ewm.request.dto.ParticipationRequestDto;
 import ru.practicum.ewm.request.model.Request;
 import ru.practicum.ewm.request.model.RequestStatus;
 import ru.practicum.ewm.user.User;
-import ru.practicum.ewm.user.UserService;
+import ru.practicum.ewm.user.UserRepository;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -30,12 +30,12 @@ public class RequestServiceImpl implements RequestService {
 
     private final RequestRepository requestRepository;
     private final EventRepository eventRepository;
-    private final UserService userService;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional
     public ParticipationRequestDto createRequest(Long userId, Long eventId) {
-        User requester = userService.getUserOrThrow(userId);
+        User requester = getUserOrThrow(userId);
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new NotFoundException("Event with id=" + eventId + " was not found"));
 
@@ -80,7 +80,7 @@ public class RequestServiceImpl implements RequestService {
     @Override
     @Transactional(readOnly = true)
     public List<ParticipationRequestDto> getUserRequests(Long userId) {
-        userService.getUserOrThrow(userId);
+        getUserOrThrow(userId);
         return requestRepository.findAllByRequesterId(userId).stream()
                 .map(RequestMapper::toDto)
                 .collect(Collectors.toList());
@@ -111,7 +111,7 @@ public class RequestServiceImpl implements RequestService {
     @Override
     @Transactional
     public EventRequestStatusUpdateResult updateRequestStatus(Long userId, Long eventId,
-                                                              EventRequestStatusUpdateRequest updateRequest) {
+                                                                EventRequestStatusUpdateRequest updateRequest) {
         Event event = getOwnedEventOrThrow(userId, eventId);
 
         List<Request> requests = requestRepository.findAllByIdInAndEventId(updateRequest.getRequestIds(), eventId);
@@ -169,12 +169,17 @@ public class RequestServiceImpl implements RequestService {
                 .build();
     }
 
+    /**
+     * Проверка владельца события выполняется как условие на уровне БД
+     * (WHERE event_id = ? AND initiator_id = ?) одним запросом.
+     */
     private Event getOwnedEventOrThrow(Long userId, Long eventId) {
-        Event event = eventRepository.findById(eventId)
+        return eventRepository.findByIdAndInitiatorId(eventId, userId)
                 .orElseThrow(() -> new NotFoundException("Event with id=" + eventId + " was not found"));
-        if (!event.getInitiator().getId().equals(userId)) {
-            throw new NotFoundException("Event with id=" + eventId + " was not found");
-        }
-        return event;
+    }
+
+    private User getUserOrThrow(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("User with id=" + userId + " was not found"));
     }
 }

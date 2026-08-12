@@ -45,9 +45,10 @@ public class UserServiceImpl implements UserService {
         repository.delete(user);
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public User getUserOrThrow(Long userId) {
+    /**
+     * Приватный внутренний хелпер, не часть публичного контракта сервиса.
+     */
+    private User getUserOrThrow(Long userId) {
         return repository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User with id=" + userId + " was not found"));
     }

@@ -16,13 +16,13 @@ import ru.practicum.ewm.event.dto.EventShortDto;
 import ru.practicum.ewm.event.model.EventSort;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.List;
 
 /**
  * Public: События — доступны без авторизации, поиск с фильтрацией и просмотр
  * подробностей опубликованного события. Каждый запрос фиксируется в сервисе
- * статистики (IP и путь берутся из HttpServletRequest).
+ * статистики (IP и путь берутся из HttpServletRequest). Контроллер только
+ * принимает и передаёт параметры дальше — null-safety для списков живёт в сервисе.
  */
 @Slf4j
 @RestController
@@ -46,8 +46,7 @@ public class EventPublicController {
             @RequestParam(defaultValue = "10") @Min(1) int size,
             HttpServletRequest httpRequest) {
         log.info("Public: поиск событий text={}, categories={}, paid={}", text, categories, paid);
-        List<Long> safeCategories = categories == null ? Collections.emptyList() : categories;
-        return eventService.searchEventsPublic(text, safeCategories, paid, rangeStart, rangeEnd, onlyAvailable,
+        return eventService.searchEventsPublic(text, categories, paid, rangeStart, rangeEnd, onlyAvailable,
                 sort, from, size, httpRequest.getRemoteAddr(), httpRequest.getRequestURI());
     }
 

@@ -5,6 +5,11 @@ import ru.practicum.ewm.category.dto.NewCategoryDto;
 
 import java.util.List;
 
+/**
+ * Контракт сервиса — только DTO. Домену событий, которому для установления
+ * связи Event -> Category нужна сама сущность, а не её представление,
+ * следует обращаться напрямую к CategoryRepository, а не через этот интерфейс.
+ */
 public interface CategoryService {
 
     CategoryDto createCategory(NewCategoryDto request);
@@ -16,10 +21,4 @@ public interface CategoryService {
     List<CategoryDto> getCategories(int from, int size);
 
     CategoryDto getCategory(Long catId);
-
-    /**
-     * Возвращает сущность категории или бросает NotFoundException.
-     * Используется доменом событий для установления связи Event -> Category.
-     */
-    Category getCategoryOrThrow(Long catId);
 }

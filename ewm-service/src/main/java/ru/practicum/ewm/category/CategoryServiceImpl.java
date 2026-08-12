@@ -7,6 +7,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.ewm.category.dto.CategoryDto;
 import ru.practicum.ewm.category.dto.NewCategoryDto;
+import ru.practicum.ewm.event.EventRepository;
+import ru.practicum.ewm.exception.ConflictException;
 import ru.practicum.ewm.exception.NotFoundException;
 import ru.practicum.ewm.util.OffsetPageRequest;
 
@@ -18,10 +20,7 @@ import java.util.stream.Collectors;
 public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryRepository repository;
-    private final ru.practicum.ewm.event.EventRepository eventRepository;
-
-    // Проверка "категория не пуста" реализована через EventRepository.existsByCategoryId
-    // (см. deleteCategory ниже) — теперь, когда домен Events существует.
+    private final EventRepository eventRepository;
 
     @Override
     @Transactional
@@ -43,7 +42,7 @@ public class CategoryServiceImpl implements CategoryService {
     public void deleteCategory(Long catId) {
         Category category = getCategoryOrThrow(catId);
         if (eventRepository.existsByCategoryId(catId)) {
-            throw new ru.practicum.ewm.exception.ConflictException("The category is not empty");
+            throw new ConflictException("The category is not empty");
         }
         repository.delete(category);
     }
@@ -64,9 +63,10 @@ public class CategoryServiceImpl implements CategoryService {
         return CategoryMapper.toCategoryDto(getCategoryOrThrow(catId));
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public Category getCategoryOrThrow(Long catId) {
+    /**
+     * Приватный внутренний хелпер, не часть публичного контракта сервиса.
+     */
+    private Category getCategoryOrThrow(Long catId) {
         return repository.findById(catId)
                 .orElseThrow(() -> new NotFoundException("Category with id=" + catId + " was not found"));
     }

@@ -1,8 +1,13 @@
 package ru.practicum.ewm.event;
 
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import org.springframework.data.jpa.domain.Specification;
+import ru.practicum.ewm.event.model.Event;
 import ru.practicum.ewm.event.model.EventState;
+import ru.practicum.ewm.request.model.Request;
+import ru.practicum.ewm.request.model.RequestStatus;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -13,7 +18,7 @@ public class EventSpecifications {
     private EventSpecifications() {
     }
 
-    public static Specification<ru.practicum.ewm.event.model.Event> adminSearch(
+    public static Specification<Event> adminSearch(
             List<Long> users, List<EventState> states, List<Long> categories,
             LocalDateTime rangeStart, LocalDateTime rangeEnd) {
         return (root, query, cb) -> {
@@ -37,7 +42,7 @@ public class EventSpecifications {
         };
     }
 
-    public static Specification<ru.practicum.ewm.event.model.Event> publicSearch(
+    public static Specification<Event> publicSearch(
             String text, List<Long> categories, Boolean paid,
             LocalDateTime rangeStart, LocalDateTime rangeEnd, boolean onlyAvailable) {
         return (root, query, cb) -> {
@@ -68,13 +73,11 @@ public class EventSpecifications {
             }
 
             if (onlyAvailable) {
-                jakarta.persistence.criteria.Subquery<Long> confirmedCountSubquery = query.subquery(Long.class);
-                jakarta.persistence.criteria.Root<ru.practicum.ewm.request.model.Request> requestRoot =
-                        confirmedCountSubquery.from(ru.practicum.ewm.request.model.Request.class);
+                Subquery<Long> confirmedCountSubquery = query.subquery(Long.class);
+                Root<Request> requestRoot = confirmedCountSubquery.from(Request.class);
                 confirmedCountSubquery.select(cb.count(requestRoot))
                         .where(cb.equal(requestRoot.get("event"), root),
-                                cb.equal(requestRoot.get("status"),
-                                        ru.practicum.ewm.request.model.RequestStatus.CONFIRMED));
+                                cb.equal(requestRoot.get("status"), RequestStatus.CONFIRMED));
 
                 Predicate noLimit = cb.equal(root.get("participantLimit"), 0);
                 Predicate underLimit = cb.lessThan(confirmedCountSubquery, root.get("participantLimit"));
