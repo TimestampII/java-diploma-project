@@ -25,6 +25,8 @@ import ru.practicum.ewm.event.model.UserStateAction;
 import ru.practicum.ewm.exception.ConflictException;
 import ru.practicum.ewm.exception.NotFoundException;
 import ru.practicum.ewm.exception.ValidationException;
+import ru.practicum.ewm.rating.EventRatingSum;
+import ru.practicum.ewm.rating.RatingRepository;
 import ru.practicum.ewm.request.EventConfirmedCount;
 import ru.practicum.ewm.request.RequestRepository;
 import ru.practicum.ewm.stats.client.StatsClient;
@@ -58,6 +60,7 @@ public class EventServiceImpl implements EventService {
     private final CategoryRepository categoryRepository;
     private final StatsClient statsClient;
     private final RequestRepository requestRepository;
+    private final RatingRepository ratingRepository;
 
     @Override
     @Transactional
@@ -72,9 +75,9 @@ public class EventServiceImpl implements EventService {
 
         Event saved = repository.save(event);
         log.info("Создано событие id={} инициатором userId={}", saved.getId(), userId);
-        // confirmedRequests=0 здесь корректно и без запроса к RequestRepository:
-        // у только что созданного события физически не может быть заявок.
-        return EventMapper.toEventFullDto(saved, 0L, 0L);
+        // confirmedRequests/rating=0 здесь корректно и без запроса к репозиториям:
+        // у только что созданного события физически не может быть ни заявок, ни голосов.
+        return EventMapper.toEventFullDto(saved, 0L, 0L, 0L);
     }
 
     @Override
@@ -85,9 +88,10 @@ public class EventServiceImpl implements EventService {
         Page<Event> page = repository.findByInitiatorId(userId, pageable);
         Map<Long, Long> views = getViewsForEvents(page.getContent());
         Map<Long, Long> confirmed = getConfirmedRequestsForEvents(page.getContent());
+        Map<Long, Long> ratings = getRatingsForEvents(page.getContent());
         return page.getContent().stream()
                 .map(e -> EventMapper.toEventShortDto(e, confirmed.getOrDefault(e.getId(), 0L),
-                        views.getOrDefault(e.getId(), 0L)))
+                        views.getOrDefault(e.getId(), 0L), ratings.getOrDefault(e.getId(), 0L)))
                 .collect(Collectors.toList());
     }
 
@@ -97,7 +101,8 @@ public class EventServiceImpl implements EventService {
         Event event = getOwnedEventOrThrow(userId, eventId);
         long views = getViewsForEvents(List.of(event)).getOrDefault(event.getId(), 0L);
         long confirmed = getConfirmedRequestsForEvents(List.of(event)).getOrDefault(event.getId(), 0L);
-        return EventMapper.toEventFullDto(event, confirmed, views);
+        long rating = getRatingsForEvents(List.of(event)).getOrDefault(event.getId(), 0L);
+        return EventMapper.toEventFullDto(event, confirmed, views, rating);
     }
 
     @Override
@@ -129,7 +134,8 @@ public class EventServiceImpl implements EventService {
         Event saved = repository.save(event);
         long views = getViewsForEvents(List.of(saved)).getOrDefault(saved.getId(), 0L);
         long confirmed = getConfirmedRequestsForEvents(List.of(saved)).getOrDefault(saved.getId(), 0L);
-        return EventMapper.toEventFullDto(saved, confirmed, views);
+        long rating = getRatingsForEvents(List.of(saved)).getOrDefault(saved.getId(), 0L);
+        return EventMapper.toEventFullDto(saved, confirmed, views, rating);
     }
 
     @Override
@@ -149,9 +155,10 @@ public class EventServiceImpl implements EventService {
         Page<Event> page = repository.findAll(spec, pageable);
         Map<Long, Long> views = getViewsForEvents(page.getContent());
         Map<Long, Long> confirmed = getConfirmedRequestsForEvents(page.getContent());
+        Map<Long, Long> ratings = getRatingsForEvents(page.getContent());
         return page.getContent().stream()
                 .map(e -> EventMapper.toEventFullDto(e, confirmed.getOrDefault(e.getId(), 0L),
-                        views.getOrDefault(e.getId(), 0L)))
+                        views.getOrDefault(e.getId(), 0L), ratings.getOrDefault(e.getId(), 0L)))
                 .collect(Collectors.toList());
     }
 
@@ -181,7 +188,8 @@ public class EventServiceImpl implements EventService {
         Event saved = repository.save(event);
         long views = getViewsForEvents(List.of(saved)).getOrDefault(saved.getId(), 0L);
         long confirmed = getConfirmedRequestsForEvents(List.of(saved)).getOrDefault(saved.getId(), 0L);
-        return EventMapper.toEventFullDto(saved, confirmed, views);
+        long rating = getRatingsForEvents(List.of(saved)).getOrDefault(saved.getId(), 0L);
+        return EventMapper.toEventFullDto(saved, confirmed, views, rating);
     }
 
     @Override
@@ -204,14 +212,17 @@ public class EventServiceImpl implements EventService {
 
         Map<Long, Long> views = getViewsForEvents(page.getContent());
         Map<Long, Long> confirmed = getConfirmedRequestsForEvents(page.getContent());
+        Map<Long, Long> ratings = getRatingsForEvents(page.getContent());
 
         List<EventShortDto> result = page.getContent().stream()
                 .map(e -> EventMapper.toEventShortDto(e, confirmed.getOrDefault(e.getId(), 0L),
-                        views.getOrDefault(e.getId(), 0L)))
+                        views.getOrDefault(e.getId(), 0L), ratings.getOrDefault(e.getId(), 0L)))
                 .collect(Collectors.toList());
 
         if (sort == EventSort.VIEWS) {
             result.sort(Comparator.comparing(EventShortDto::getViews, Comparator.nullsLast(Comparator.reverseOrder())));
+        } else if (sort == EventSort.RATING) {
+            result.sort(Comparator.comparing(EventShortDto::getRating, Comparator.nullsLast(Comparator.reverseOrder())));
         } else {
             result.sort(Comparator.comparing(EventShortDto::getEventDate));
         }
@@ -229,7 +240,8 @@ public class EventServiceImpl implements EventService {
 
         long views = getViewsForEvents(List.of(event)).getOrDefault(event.getId(), 0L);
         long confirmed = getConfirmedRequestsForEvents(List.of(event)).getOrDefault(event.getId(), 0L);
-        return EventMapper.toEventFullDto(event, confirmed, views);
+        long rating = getRatingsForEvents(List.of(event)).getOrDefault(event.getId(), 0L);
+        return EventMapper.toEventFullDto(event, confirmed, views, rating);
     }
 
     @Override
@@ -240,9 +252,10 @@ public class EventServiceImpl implements EventService {
         }
         Map<Long, Long> views = getViewsForEvents(events);
         Map<Long, Long> confirmed = getConfirmedRequestsForEvents(events);
+        Map<Long, Long> ratings = getRatingsForEvents(events);
         return events.stream()
                 .map(e -> EventMapper.toEventShortDto(e, confirmed.getOrDefault(e.getId(), 0L),
-                        views.getOrDefault(e.getId(), 0L)))
+                        views.getOrDefault(e.getId(), 0L), ratings.getOrDefault(e.getId(), 0L)))
                 .collect(Collectors.toList());
     }
 
@@ -376,5 +389,18 @@ public class EventServiceImpl implements EventService {
         List<Long> eventIds = events.stream().map(Event::getId).collect(Collectors.toList());
         return requestRepository.countConfirmedByEventIds(eventIds).stream()
                 .collect(Collectors.toMap(EventConfirmedCount::getEventId, EventConfirmedCount::getConfirmedCount));
+    }
+
+    /**
+     * Считает чистый рейтинг (лайки минус дизлайки) для списка событий одним
+     * батч-запросом (group by event_id) — дополнительная функциональность rating_events.
+     */
+    private Map<Long, Long> getRatingsForEvents(List<Event> events) {
+        if (events.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> eventIds = events.stream().map(Event::getId).collect(Collectors.toList());
+        return ratingRepository.sumRatingsByEventIds(eventIds).stream()
+                .collect(Collectors.toMap(EventRatingSum::getEventId, EventRatingSum::getRating));
     }
 }

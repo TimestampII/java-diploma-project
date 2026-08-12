@@ -54,4 +54,11 @@ public class EventFullDto {
     private Long confirmedRequests;
 
     private Long views;
+
+    /**
+     * Чистый рейтинг события (лайки минус дизлайки). Поле добавлено
+     * в рамках дополнительной функциональности rating_events и не
+     * входит в базовую спецификацию основного сервиса.
+     */
+    private Long rating;
 }

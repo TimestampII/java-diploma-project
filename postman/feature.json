@@ -1,0 +1,266 @@
+{
+  "info": {
+    "name": "EWM Feature — rating_events",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8080" }
+  ],
+  "item": [
+    {
+      "name": "Подготовка: пользователи, категория, событие",
+      "item": [
+        {
+          "name": "POST /admin/users — организатор",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/admin/users",
+            "body": { "mode": "raw", "raw": "{\"name\":\"Организатор\",\"email\":\"organizer-rating@practicummail.ru\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 201', () => pm.response.to.have.status(201));",
+              "pm.collectionVariables.set('initiator_id', pm.response.json().id);"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /admin/users — голосующий",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/admin/users",
+            "body": { "mode": "raw", "raw": "{\"name\":\"Голосующий\",\"email\":\"voter-rating@practicummail.ru\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 201', () => pm.response.to.have.status(201));",
+              "pm.collectionVariables.set('voter_id', pm.response.json().id);"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /admin/categories",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/admin/categories",
+            "body": { "mode": "raw", "raw": "{\"name\":\"Рейтинговые события\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 201', () => pm.response.to.have.status(201));",
+              "pm.collectionVariables.set('category_id', pm.response.json().id);"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /users/{initiatorId}/events — создать и опубликовать",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/users/{{initiator_id}}/events",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"Событие для рейтинга\",\"annotation\":\"Аннотация не короче двадцати символов\",\"description\":\"Описание события не короче двадцати символов для проверки\",\"category\":{{category_id}},\"eventDate\":\"2027-06-01 12:00:00\",\"location\":{\"lat\":55.75,\"lon\":37.62}}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 201', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.test('rating изначально 0', () => pm.expect(body.rating).to.eql(0));",
+              "pm.collectionVariables.set('event_id', body.id);"
+            ]}
+          }]
+        },
+        {
+          "name": "PATCH /admin/events/{eventId} — публикация",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/admin/events/{{event_id}}",
+            "body": { "mode": "raw", "raw": "{\"stateAction\":\"PUBLISH_EVENT\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Голосование",
+      "item": [
+        {
+          "name": "PUT rating — инициатор пытается оценить своё событие (409)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/users/{{initiator_id}}/events/{{event_id}}/rating",
+            "body": { "mode": "raw", "raw": "{\"value\":\"LIKE\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 409', () => pm.response.to.have.status(409));"
+            ]}
+          }]
+        },
+        {
+          "name": "PUT rating — голосующий ставит LIKE",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/users/{{voter_id}}/events/{{event_id}}/rating",
+            "body": { "mode": "raw", "raw": "{\"value\":\"LIKE\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        },
+        {
+          "name": "GET /events/{id} — rating должен стать 1",
+          "request": { "method": "GET", "url": "{{base_url}}/events/{{event_id}}" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));",
+              "pm.test('rating=1', () => pm.expect(pm.response.json().rating).to.eql(1));"
+            ]}
+          }]
+        },
+        {
+          "name": "PUT rating — тот же пользователь меняет на DISLIKE",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/users/{{voter_id}}/events/{{event_id}}/rating",
+            "body": { "mode": "raw", "raw": "{\"value\":\"DISLIKE\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        },
+        {
+          "name": "GET /events/{id} — rating должен стать -1 (голос заменён, не задвоен)",
+          "request": { "method": "GET", "url": "{{base_url}}/events/{{event_id}}" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));",
+              "pm.test('rating=-1', () => pm.expect(pm.response.json().rating).to.eql(-1));"
+            ]}
+          }]
+        },
+        {
+          "name": "GET /users/{initiatorId}/rating — суммарный рейтинг организатора",
+          "request": { "method": "GET", "url": "{{base_url}}/users/{{initiator_id}}/rating" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('rating=-1', () => pm.expect(body.rating).to.eql(-1));",
+              "pm.test('userId совпадает', () => pm.expect(body.userId).to.eql(pm.collectionVariables.get('initiator_id')));"
+            ]}
+          }]
+        },
+        {
+          "name": "DELETE rating — отменить голос",
+          "request": { "method": "DELETE", "url": "{{base_url}}/users/{{voter_id}}/events/{{event_id}}/rating" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 204', () => pm.response.to.have.status(204));"
+            ]}
+          }]
+        },
+        {
+          "name": "DELETE rating повторно — голоса уже нет (404)",
+          "request": { "method": "DELETE", "url": "{{base_url}}/users/{{voter_id}}/events/{{event_id}}/rating" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 404', () => pm.response.to.have.status(404));"
+            ]}
+          }]
+        },
+        {
+          "name": "GET /events/{id} — rating снова 0 после отмены",
+          "request": { "method": "GET", "url": "{{base_url}}/events/{{event_id}}" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));",
+              "pm.test('rating=0', () => pm.expect(pm.response.json().rating).to.eql(0));"
+            ]}
+          }]
+        },
+        {
+          "name": "PUT rating — голосование за неопубликованное событие (409)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/users/{{initiator_id}}/events",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"Неопубликованное\",\"annotation\":\"Аннотация не короче двадцати символов\",\"description\":\"Описание события не короче двадцати символов для проверки\",\"category\":{{category_id}},\"eventDate\":\"2027-06-01 12:00:00\",\"location\":{\"lat\":55.75,\"lon\":37.62}}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 201', () => pm.response.to.have.status(201));",
+              "pm.collectionVariables.set('pending_event_id', pm.response.json().id);"
+            ]}
+          }]
+        },
+        {
+          "name": "PUT rating на PENDING событие (409)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/users/{{voter_id}}/events/{{pending_event_id}}/rating",
+            "body": { "mode": "raw", "raw": "{\"value\":\"LIKE\"}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 409', () => pm.response.to.have.status(409));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Сортировка по рейтингу",
+      "item": [
+        {
+          "name": "GET /events?sort=RATING",
+          "request": { "method": "GET", "url": "{{base_url}}/events?sort=RATING" },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Статус 200', () => pm.response.to.have.status(200));",
+              "pm.test('Тело — массив', () => pm.expect(pm.response.json()).to.be.an('array'));"
+            ]}
+          }]
+        }
+      ]
+    }
+  ]
+}

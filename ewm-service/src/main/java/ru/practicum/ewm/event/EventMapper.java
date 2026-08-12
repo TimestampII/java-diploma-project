@@ -35,10 +35,11 @@ public class EventMapper {
     }
 
     /**
-     * confirmedRequests и views вычисляются вне маппера (запросы к БД / сервису статистики)
-     * и передаются явно, поэтому здесь принимаются как параметры, а не берутся из Event.
+     * confirmedRequests, views и rating вычисляются вне маппера (запросы к БД / сервису
+     * статистики) и передаются явно, поэтому здесь принимаются как параметры,
+     * а не берутся из Event.
      */
-    public static EventFullDto toEventFullDto(Event event, long confirmedRequests, long views) {
+    public static EventFullDto toEventFullDto(Event event, long confirmedRequests, long views, long rating) {
         return EventFullDto.builder()
                 .id(event.getId())
                 .title(event.getTitle())
@@ -59,10 +60,11 @@ public class EventMapper {
                 .state(event.getState().name())
                 .confirmedRequests(confirmedRequests)
                 .views(views)
+                .rating(rating)
                 .build();
     }
 
-    public static EventShortDto toEventShortDto(Event event, long confirmedRequests, long views) {
+    public static EventShortDto toEventShortDto(Event event, long confirmedRequests, long views, long rating) {
         return EventShortDto.builder()
                 .id(event.getId())
                 .title(event.getTitle())
@@ -73,6 +75,7 @@ public class EventMapper {
                 .eventDate(event.getEventDate())
                 .confirmedRequests(confirmedRequests)
                 .views(views)
+                .rating(rating)
                 .build();
     }
 }
